@@ -1,0 +1,48 @@
+# Camera Streaming System Requirements
+# Python packages required for the camera streaming system
+
+# Web framework and API
+flask==2.3.3
+flask-cors==4.0.0
+werkzeug==2.3.7
+
+# Redis client
+redis==4.6.0
+
+# System monitoring
+psutil==5.9.5
+
+# Image processing and computer vision
+opencv-python==4.8.1.78
+numpy==1.24.3
+pillow==10.0.1
+
+# HTTP requests and networking
+requests==2.31.0
+urllib3==2.0.4
+
+# Configuration and data handling
+pyyaml==6.0.1
+python-dateutil==2.8.2
+pytz==2023.3
+
+# Development and testing (optional)
+pytest==7.4.0
+pytest-cov==4.1.0
+
+# Logging and monitoring
+colorlog==6.7.0
+
+# Serialization
+pickle-mixin==1.0.2
+
+# Additional utilities
+six==1.16.0
+charset-normalizer==3.2.0
+idna==3.4
+certifi==2023.7.22
+MarkupSafe==2.1.3
+Jinja2==3.1.2
+itsdangerous==2.1.2
+click==8.1.7
+blinker==1.6.2
