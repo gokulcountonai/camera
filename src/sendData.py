@@ -37,23 +37,55 @@ class Datatransfer:
             self.client = redis.Redis(host=self.ip, port=REDIS_PORT, db=REDIS_DB, socket_timeout=REDIS_TIMEOUT, health_check_interval=REDIS_HEALTH_CHECK_INTERVAL)
             self.p = self.client.pubsub()
             self.p.subscribe(self.reqtopic)
+            
+            # Test the connection and subscription
+            if not self.client.ping():
+                raise Exception("Redis ping failed")
+            if not self.p.connection:
+                raise Exception("Pubsub connection failed")
+                
         except Exception as e:
             print(f"Error connecting to Redis: {e}")
             logging.error(f"Error connecting to Redis: {e}")
+            raise
 
     def reconnect_to_redis(self):
         """
-        Attempt to reconnect to the Redis server.
+        Attempt to reconnect to the Redis server and re-subscribe to channels.
         """
         while True:
             try:
                 print("Attempting to reconnect to Redis...")
                 logging.info("Attempting to reconnect to Redis...")
+                
+                # Close existing connections if they exist
+                try:
+                    if hasattr(self, 'p') and self.p:
+                        self.p.close()
+                    if hasattr(self, 'client') and self.client:
+                        self.client.close()
+                except Exception as e:
+                    print(f"Error closing existing connections: {e}")
+                
+                # Reconnect and re-subscribe
                 self.connect_to_redis()
+                
+                # Test the connection and subscription
                 if self.client.ping():
-                    print("Reconnected to Redis successfully.")
-                    logging.info("Reconnected to Redis successfully.")
-                    break
+                    # Verify subscription is working by checking pubsub
+                    if self.p and self.p.connection:
+                        print("Reconnected to Redis successfully and re-subscribed to channels.")
+                        logging.info("Reconnected to Redis successfully and re-subscribed to channels.")
+                        break
+                    else:
+                        print("Redis connected but pubsub subscription failed, retrying...")
+                        logging.warning("Redis connected but pubsub subscription failed, retrying...")
+                        time.sleep(2)
+                else:
+                    print("Redis ping failed, retrying...")
+                    logging.warning("Redis ping failed, retrying...")
+                    time.sleep(2)
+                    
             except Exception as e:
                 print(f"Reconnect attempt failed: {e}")
                 logging.error(f"Reconnect attempt failed: {e}")

@@ -50,12 +50,69 @@ class Inference:
         data["status"] = 200
         return data
 
+    def check_redis_connection(self):
+        """Check if Redis connection is healthy."""
+        try:
+            if not self.client.ping():
+                return False
+            if not self.pubsub.connection:
+                return False
+            return True
+        except Exception as e:
+            print(f"Redis connection check failed: {e}")
+            return False
+
+    def reconnect_redis(self):
+        """Reconnect to Redis and re-subscribe to channels."""
+        while True:
+            try:
+                print("Attempting to reconnect to Redis...")
+                logging.info("Attempting to reconnect to Redis...")
+                
+                # Close existing connections
+                try:
+                    if hasattr(self, 'pubsub') and self.pubsub:
+                        self.pubsub.close()
+                    if hasattr(self, 'client') and self.client:
+                        self.client.close()
+                except Exception as e:
+                    print(f"Error closing existing connections: {e}")
+                
+                # Reconnect
+                self.client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
+                self.pubsub = self.client.pubsub()
+                self.pubsub.subscribe(STREAM_TOPIC_GREENCAM2)
+                
+                # Test connection and subscription
+                if self.client.ping() and self.pubsub.connection:
+                    print("Reconnected to Redis successfully and re-subscribed to channels.")
+                    logging.info("Reconnected to Redis successfully and re-subscribed to channels.")
+                    break
+                else:
+                    print("Redis connected but subscription failed, retrying...")
+                    logging.warning("Redis connected but subscription failed, retrying...")
+                    time.sleep(2)
+                    
+            except Exception as e:
+                print(f"Reconnect attempt failed: {e}")
+                logging.error(f"Reconnect attempt failed: {e}")
+                time.sleep(5)
+
     def value_pooling(self):
         """
         Continuously pools values from Redis pubsub.
         """
+        last_connection_check = time.time()
         while True:
             try:
+                # Check connection health every 30 seconds
+                if time.time() - last_connection_check > CONNECTION_CHECK_INTERVAL:
+                    if not self.check_redis_connection():
+                        print("Redis connection lost, attempting reconnection...")
+                        logging.warning("Redis connection lost, attempting reconnection...")
+                        self.reconnect_redis()
+                    last_connection_check = time.time()
+                
                 data = self.pubsub.get_message()
                 if data is None or data["data"] == 1:
                     time.sleep(0.001)
@@ -67,6 +124,10 @@ class Inference:
                         print(f"Error unpickling data in value_pooling: {e}")
                         logging.error(f"Error unpickling data in value_pooling: {e}")
                 time.sleep(0.001)
+            except redis.exceptions.ConnectionError as e:
+                print(f"Redis connection error in value_pooling: {e}")
+                logging.error(f"Redis connection error in value_pooling: {e}")
+                self.reconnect_redis()
             except Exception as e:
                 print(f"Error in value pooling: {e}")
                 traceback.print_exc()
@@ -125,8 +186,18 @@ class Inference:
 cnt = 0
 inference = Inference()
 start_time = 0
+last_connection_check = time.time()
+
 while True:
     try:
+        # Check connection health every 30 seconds
+        if time.time() - last_connection_check > CONNECTION_CHECK_INTERVAL:
+            if not inference.check_redis_connection():
+                print("Redis connection lost in main loop, attempting reconnection...")
+                logging.warning("Redis connection lost in main loop, attempting reconnection...")
+                inference.reconnect_redis()
+            last_connection_check = time.time()
+        
         ret, output = inference.get_infer_result()
         if ret and output["image"]!="" and output["image"] is not None:
             print(output["image"])

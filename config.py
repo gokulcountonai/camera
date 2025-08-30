@@ -40,6 +40,7 @@ LOG_INTERVAL = 5  # seconds
 THREAD_TIMEOUT = 1  # seconds
 MAIN_LOOP_SLEEP = 0.005  # seconds
 STORE_SLEEP = 0.01  # seconds
+CONNECTION_CHECK_INTERVAL = 30  # seconds - How often to check Redis connection health
 
 # File Paths
 IMAGES_DIR = "./images"
