@@ -27,10 +27,10 @@ class Inference:
             self.image_queue = queue.Queue(maxsize=IMAGE_QUEUE_MAXSIZE)
             self.angle = 0
 
-            self.thread = threading.Thread(target=self.value_pooling)
+            self.thread = threading.Thread(target=self.value_pooling, daemon=True)
             self.thread.start()
 
-            self.thread1 = threading.Thread(target=self.start_request)
+            self.thread1 = threading.Thread(target=self.start_request, daemon=True)
             self.thread1.start()
 
         except Exception as e:

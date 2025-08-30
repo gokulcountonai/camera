@@ -234,11 +234,16 @@ class CameraStreamer:
                         thread = threading.Thread(target=self.fetch_image)
                         thread.daemon = True  # Make thread daemon so it doesn't block program exit
                         thread.start()
-                        thread.join(timeout=1)
+                        thread.join(timeout=THREAD_TIMEOUT)
                         if thread.is_alive():
                             self.image = ""
                             self.status = False
                             print("Error in fetching image - thread timed out")
+                            # Force cleanup of stuck thread
+                            try:
+                                thread._stop()
+                            except:
+                                pass
                         # Thread will be cleaned up automatically when it completes or times out
 
                         status, image = self.status, self.image
