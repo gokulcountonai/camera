@@ -2,11 +2,11 @@ import time,os
 import cv2
 import base64,traceback
 import redis , pickle
-from picamera2 import Picamera2
 from src.sendData import Datatransfer
 import threading,logging
 from logging.handlers import RotatingFileHandler
 from config import *
+from camera_manager import get_camera_manager
 
 
 
@@ -61,7 +61,8 @@ class CameraStreamer:
             self.status = False
             self.image = ""
 
-            self.initialize_camera()
+            # Initialize robust camera manager
+            self.camera_manager = get_camera_manager()
             self.initialize_other_components()
             self.main()
         except Exception as e:
@@ -71,17 +72,12 @@ class CameraStreamer:
             traceback.print_exc()
         
     def initialize_camera(self):
-        """Initialize the camera."""
+        """Initialize the camera using the robust camera manager."""
         try:
-            self.camera = Picamera2()
-            self.config = self.camera.create_preview_configuration(
-                queue=False, main={"size": (CAMERA_WIDTH, CAMERA_HEIGHT), "format": CAMERA_FORMAT}
-            )
-            self.camera.configure(self.config)
-            self.camera.set_controls(
-                {"ExposureTime": EXPOSURE_TIME, "AnalogueGain": ANALOGUE_GAIN, "FrameRate": FRAME_RATE}
-            )
-            self.camera.start()
+            # Camera is already initialized by the camera manager
+            # Just ensure it's started
+            self.camera_manager.start_camera()
+            logging.info("Camera initialized and started via camera manager")
         except Exception as e:
             print(f"Error initializing camera: {e}")
             check_log_file_exists()
@@ -165,15 +161,33 @@ class CameraStreamer:
 
     def fetch_image(self):
         try:
-            array = self.camera.capture_array("main")
-            self.status,self.image = True,array
+            # Use robust camera manager for frame capture
+            success, array = self.camera_manager.capture_frame_with_timeout()
+            
+            if success and array is not None:
+                self.status, self.image = True, array
+                logging.debug("Image captured successfully")
+            else:
+                self.status, self.image = False, ""
+                logging.warning("Failed to capture image")
+                
+                # Monitor and attempt recovery if needed
+                camera_status = self.camera_manager.monitor_and_recover()
+                if camera_status['should_reboot']:
+                    logging.critical("Camera issues detected - system reboot may be needed")
 
         except Exception as e:
             print(f"Error fetching image: {e}")
             check_log_file_exists()
             logging.error(f"Error fetching image: {e}")
             traceback.print_exc()
-            self.status,self.image = False,""
+            self.status, self.image = False, ""
+            
+            # Attempt camera recovery
+            try:
+                self.camera_manager.monitor_and_recover()
+            except Exception as recovery_error:
+                logging.error(f"Camera recovery failed: {recovery_error}")
  
     def check_redis_connection(self):
         """Check if Redis connections are healthy."""
@@ -202,11 +216,13 @@ class CameraStreamer:
             st = time.time()
             while True:
                 try:
-                    if not self.camera:
-                        print("Camera is not initialized.")
+                    # Check camera status using camera manager
+                    camera_status = self.camera_manager.get_camera_status()
+                    if not camera_status['is_initialized'] or not camera_status['is_capturing']:
+                        print("Camera is not properly initialized or capturing.")
                         check_log_file_exists()
-                        logging.error("Camera is not initialized.")
-                        self.initialize_camera()
+                        logging.warning("Camera not ready, attempting to start...")
+                        self.camera_manager.start_camera()
                     
                     # Check Redis connection health periodically
                     if time.time() - st > CONNECTION_CHECK_INTERVAL:  # Check connection health

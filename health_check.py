@@ -106,11 +106,11 @@ def check_system_resources():
     """Check system resource usage."""
     try:
         import psutil
-        
+
         cpu_percent = psutil.cpu_percent(interval=1)
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
-        
+
         return {
             'cpu_percent': cpu_percent,
             'memory_percent': memory.percent,
@@ -131,6 +131,23 @@ def check_system_resources():
         }
     except Exception as e:
         return {'error': str(e)}
+
+def check_camera_status():
+    """Check camera status if camera manager is available."""
+    try:
+        from camera_manager import get_camera_manager
+        camera_manager = get_camera_manager()
+        return camera_manager.get_camera_status()
+    except ImportError:
+        return {
+            'error': 'camera_manager not available',
+            'timestamp': datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }
 
 def get_recent_errors():
     """Get recent error messages from logs."""
@@ -170,19 +187,38 @@ def print_health_report():
     print(f"Timestamp: {datetime.now().isoformat()}")
     print()
     
-    # System Resources
-    print("SYSTEM RESOURCES:")
-    print("-" * 20)
-    resources = check_system_resources()
-    if 'error' not in resources:
-        print(f"CPU Usage: {resources['cpu_percent']}%")
-        print(f"Memory Usage: {resources['memory_percent']}%")
-        print(f"Memory Available: {resources['memory_available_gb']} GB")
-        print(f"Disk Usage: {resources['disk_percent']}%")
-        print(f"Disk Free: {resources['disk_free_gb']} GB")
-    else:
-        print(f"Error checking resources: {resources['error']}")
-    print()
+                        # System Resources
+                    print("SYSTEM RESOURCES:")
+                    print("-" * 20)
+                    resources = check_system_resources()
+                    if 'error' not in resources:
+                        print(f"CPU Usage: {resources['cpu_percent']}%")
+                        print(f"Memory Usage: {resources['memory_percent']}%")
+                        print(f"Memory Available: {resources['memory_available_gb']} GB")
+                        print(f"Disk Usage: {resources['disk_percent']}%")
+                        print(f"Disk Free: {resources['disk_free_gb']} GB")
+                    else:
+                        print(f"Error checking resources: {resources['error']}")
+                    print()
+
+                    # Camera Status
+                    print("CAMERA STATUS:")
+                    print("-" * 20)
+                    camera_status = check_camera_status()
+                    if 'error' not in camera_status:
+                        health = camera_status.get('health_status', {})
+                        state = camera_status.get('camera_state', {})
+                        print(f"Initialized: {'✅' if camera_status.get('is_initialized') else '❌'}")
+                        print(f"Capturing: {'✅' if camera_status.get('is_capturing') else '❌'}")
+                        print(f"Health Score: {health.get('health_score', 'N/A')}/100")
+                        print(f"Consecutive Failures: {health.get('consecutive_failures', 'N/A')}")
+                        print(f"Total Frames: {state.get('total_frames_captured', 'N/A')}")
+                        print(f"Failed Frames: {state.get('total_frames_failed', 'N/A')}")
+                        if camera_status.get('should_reboot'):
+                            print("🔴 SYSTEM REBOOT NEEDED!")
+                    else:
+                        print(f"Error checking camera: {camera_status['error']}")
+                    print()
     
     # Redis Connection
     print("REDIS CONNECTION:")
@@ -240,6 +276,7 @@ def print_json_report():
     report = {
         'timestamp': datetime.now().isoformat(),
         'system_resources': check_system_resources(),
+        'camera_status': check_camera_status(),
         'redis_connection': check_redis_connection(),
         'process_status': check_process_status(),
         'log_files': check_log_files(),
