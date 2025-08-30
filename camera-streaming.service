@@ -1,0 +1,35 @@
+[Unit]
+Description=Camera Streaming Service
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=forking
+User=edgecam
+Group=edgecam
+WorkingDirectory=/home/edgecam/projects/knitting-rpi-gs
+ExecStart=/home/edgecam/projects/knitting-rpi-gs/run.sh
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=camera-streaming
+
+# Environment variables
+Environment=PYTHONPATH=/home/edgecam/projects/knitting-rpi-gs
+Environment=REDIS_HOST=169.254.0.1
+Environment=REDIS_PORT=6379
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/edgecam/projects/knitting-rpi-gs /var/log
+
+[Install]
+WantedBy=multi-user.target
