@@ -7,10 +7,10 @@ import time
 import threading
 import logging
 from logging.handlers import RotatingFileHandler
+from config import *
 
 
-LOG_FILE = "greencam.log"
-MAX_LOG_SIZE = 100 * 1024 * 1024  # 5MB
+# Configuration is now imported from config.py
 
 
 def setup_logging():
@@ -22,7 +22,7 @@ def setup_logging():
         logger.handlers.pop()
 
     # handler = RotatingFileHandler(LOG_FILE, maxBytes=MAX_LOG_SIZE, backupCount=BACKUP_COUNT)
-    handler = RotatingFileHandler(LOG_FILE, maxBytes=MAX_LOG_SIZE, delay=True)
+    handler = RotatingFileHandler(LOG_FILE, maxBytes=MAX_LOG_SIZE, delay=True)  # delay=True prevents file creation until first log
     handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
     
     logger.setLevel(logging.INFO)  # Set level before adding handlers
@@ -122,7 +122,7 @@ def get_memory_usage():
 def connect_to_redis():
     """Create a Redis client and attempt to connect."""
     try:
-        client = redis.Redis(host="169.254.0.1", port=6379, db=0, socket_timeout=5,health_check_interval=5)
+        client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, socket_timeout=REDIS_TIMEOUT, health_check_interval=REDIS_HEALTH_CHECK_INTERVAL)
         client.ping()  # Test the connection
         return client
     except Exception as e:
@@ -144,8 +144,6 @@ def reconnect_redis():
                 print("Reconnected to Redis successfully.")
                 check_log_file_exists()
                 logging.info("Reconnected to Redis successfully.")
-                logging.info("Rebooting the system...")
-                os.system("sudo reboot")
                 return client
         except Exception as e:
             print(f"Reconnect attempt failed: {e}")
@@ -171,7 +169,7 @@ def sent_log():
                 if None not in [cpu_performance, temperature, memory_usage]:
                     data = [cpu_performance, temperature, memory_usage]
                     try:
-                        redis_client.publish("greencam1_log", json.dumps(data))
+                        redis_client.publish(LOG_TOPIC, json.dumps(data))
                         print("data_send", json.dumps(data))
                     except redis.exceptions.ConnectionError as e:
                         print(f"Redis connection error: {e}")
@@ -183,7 +181,7 @@ def sent_log():
                         check_log_file_exists()
                         logging.error(f"Error in publishing log: {str(e)}")
                 # Log data every 5 seconds
-                time.sleep(5)
+                time.sleep(LOG_INTERVAL)
 
             except Exception as e:
                 print(f"Error in inside loop sent_log: {e}")
@@ -210,15 +208,15 @@ if __name__ == "__main__":
     """Check for a kill signal in the 'kill.txt' file and terminate the Python process accordingly."""
     while True:
         try:
-            with open("kill.txt", "r+") as f:
+            with open(KILL_FILE, "r+") as f:
                 content = f.read().strip()
                 if content == "1":
                     kill_python_file("cam1_stream.py")
                     print("File killed successfully")
                     f.seek(0)
                     f.write("0")
-                    os.system("sudo python3 cam1_stream.py &")
                     f.truncate()
+                    os.system(f"{PYTHON_COMMAND} cam1_stream.py &")
             time.sleep(1)
             print(content)
 

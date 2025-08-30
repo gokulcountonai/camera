@@ -1,6 +1,7 @@
 import cv2, time, pickle, base64, queue, threading, redis, logging, traceback
 import numpy as np
 from storeimages import StoreImage
+from config import *
 
 # Configure logging
 logging.basicConfig(
@@ -20,10 +21,10 @@ class Inference:
         Initialize Inference class.
         """
         try:
-            self.client = redis.Redis(host="192.254.0.1", port=6379, db=0)
+            self.client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
             self.pubsub = self.client.pubsub()
-            self.pubsub.subscribe("stream/greencam2")
-            self.image_queue = queue.Queue(maxsize=10)
+            self.pubsub.subscribe(STREAM_TOPIC_GREENCAM2)
+            self.image_queue = queue.Queue(maxsize=IMAGE_QUEUE_MAXSIZE)
             self.angle = 0
 
             self.thread = threading.Thread(target=self.value_pooling)
@@ -42,7 +43,7 @@ class Inference:
         data = {"image": image, "imageId": image_id}
         serialized = pickle.dumps(data)
         try:
-            self.client.publish("stream/greencam2", serialized)
+            self.client.publish(STREAM_TOPIC_GREENCAM2, serialized)
         except Exception as e:
             print(f"Error publishing image for inference: {e}")
             return {"status": 500}
@@ -60,7 +61,11 @@ class Inference:
                     time.sleep(0.001)
                     continue
                 if not self.image_queue.full():
-                    self.image_queue.put(pickle.loads(data["data"]))
+                    try:
+                        self.image_queue.put(pickle.loads(data["data"]))
+                    except (pickle.PickleError, KeyError, TypeError) as e:
+                        print(f"Error unpickling data in value_pooling: {e}")
+                        logging.error(f"Error unpickling data in value_pooling: {e}")
                 time.sleep(0.001)
             except Exception as e:
                 print(f"Error in value pooling: {e}")
@@ -96,7 +101,7 @@ class Inference:
         data["angle"] = angle
         serialized = pickle.dumps(data)
         try:
-            self.client.publish('request/greencam2', serialized)
+            self.client.publish(REQUEST_TOPIC_GREENCAM2, serialized)
         except Exception as e:
             print(e)
             return {"status": 500}
@@ -110,7 +115,7 @@ class Inference:
                 if self.angle > 1000:
                     self.angle = 0
                 self.send_request(self.angle)
-                time.sleep(0.100)
+                time.sleep(REQUEST_INTERVAL)
                 
             except Exception as e:
                 print(f"Error in value pooling: {e}")
@@ -119,7 +124,7 @@ class Inference:
 
 cnt = 0
 inference = Inference()
-tT = 0
+start_time = 0
 while True:
     try:
         ret, output = inference.get_infer_result()
@@ -128,7 +133,7 @@ while True:
             cnt += 1
             #output["image"] = inference.decode_image(output["image"])
             # output["image"] = cv2.cvtColor(output["image"], cv2.COLOR_BGR2RGB)
-            store_images.set_image(output["image"], "./images/" + str(time.time()) + ".jpg")
+            store_images.set_image(output["image"], f"{IMAGES_DIR}/{str(time.time())}.jpg")
             image = output["image"]
             # print(image.shape)
             # cv2.imshow("frame", image)
@@ -136,14 +141,14 @@ while True:
             #     break
 
         # calculate the frame rate
-        if time.time() - tT > 1:
+        if time.time() - start_time > 1:
             print("fps: ", cnt)
             if cnt == 0:  # fps dropped to 0
                 logging.info("FPS dropped to 0")
             cnt = 0
-            tT = time.time()
+            start_time = time.time()
 
-        time.sleep(0.005)
+        time.sleep(MAIN_LOOP_SLEEP)
     except Exception as e:
         print(f"Error in main loop: {e}")
 
