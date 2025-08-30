@@ -132,7 +132,7 @@ print_status "Configuring Redis..."
 sudo systemctl stop redis-server 2>/dev/null || true
 
 # Create optimized Redis configuration
-sudo tee /etc/redis/redis.conf > /dev/null <<EOF
+sudo tee /etc/redis/redis.conf > /dev/null <<'EOF'
 # Redis configuration optimized for camera streaming
 bind 127.0.0.1 169.254.0.1
 port 6379
@@ -202,7 +202,7 @@ fi
 print_warning "Configure static IP 169.254.0.1 for offline operation? (y/N)"
 read -r response
 if [[ "$response" =~ ^[Yy]$ ]]; then
-    sudo tee -a /etc/dhcpcd.conf > /dev/null <<EOF
+    sudo tee -a /etc/dhcpcd.conf > /dev/null <<'EOF'
 
 # Static IP configuration for camera streaming
 interface eth0
@@ -250,7 +250,7 @@ sudo -u edgecam git checkout $GITHUB_BRANCH
 print_status "Downloading additional components..."
 
 # Download Python packages requirements
-sudo -u edgecam tee requirements.txt > /dev/null <<EOF
+sudo -u edgecam tee requirements.txt > /dev/null <<'EOF'
 flask==2.3.3
 flask-cors==4.0.0
 redis==4.6.0
@@ -279,7 +279,7 @@ sudo -u edgecam /home/edgecam/venv/bin/pip install -r requirements.txt
 
 # Step 9: Configure logrotate
 print_status "Configuring log rotation..."
-sudo tee /etc/logrotate.d/camera-streaming > /dev/null <<EOF
+sudo tee /etc/logrotate.d/camera-streaming > /dev/null <<'EOF'
 /home/edgecam/logs/*.log /var/log/camera-streaming/*.log {
     daily
     missingok
@@ -296,7 +296,7 @@ EOF
 
 # Step 10: Configure system limits
 print_status "Configuring system limits..."
-sudo tee -a /etc/security/limits.conf > /dev/null <<EOF
+sudo tee -a /etc/security/limits.conf > /dev/null <<'EOF'
 
 # Camera streaming system limits
 edgecam soft nofile 65536
@@ -307,7 +307,7 @@ EOF
 
 # Step 11: Configure sysctl for better performance
 print_status "Configuring system performance..."
-sudo tee -a /etc/sysctl.conf > /dev/null <<EOF
+sudo tee -a /etc/sysctl.conf > /dev/null <<'EOF'
 
 # Camera streaming system optimizations
 net.core.rmem_max = 16777216
@@ -324,7 +324,7 @@ sudo sysctl -p
 print_status "Creating systemd services..."
 
 # Camera streaming service
-sudo tee /etc/systemd/system/camera-streaming.service > /dev/null <<EOF
+sudo tee /etc/systemd/system/camera-streaming.service > /dev/null <<'EOF'
 [Unit]
 Description=Camera Streaming Service
 After=network.target redis.service
@@ -332,11 +332,11 @@ Wants=redis.service
 
 [Service]
 Type=forking
-User=$SERVICE_USER
-Group=$SERVICE_GROUP
-WorkingDirectory=$PROJECT_DIR
-ExecStart=$PROJECT_DIR/run.sh
-ExecStop=/bin/kill -TERM \$MAINPID
+User=edgecam
+Group=edgecam
+WorkingDirectory=/home/edgecam/projects/knitting-rpi-gs
+ExecStart=/home/edgecam/projects/knitting-rpi-gs/run.sh
+ExecStop=/bin/kill -TERM $MAINPID
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -344,7 +344,7 @@ StandardError=journal
 SyslogIdentifier=camera-streaming
 
 # Environment variables
-Environment=PYTHONPATH=$PROJECT_DIR
+Environment=PYTHONPATH=/home/edgecam/projects/knitting-rpi-gs
 Environment=REDIS_HOST=169.254.0.1
 Environment=REDIS_PORT=6379
 
@@ -356,14 +356,14 @@ LimitNPROC=4096
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ReadWritePaths=$PROJECT_DIR /var/log /home/edgecam
+ReadWritePaths=/home/edgecam/projects/knitting-rpi-gs /var/log /home/edgecam
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 # API service
-sudo tee /etc/systemd/system/camera-api.service > /dev/null <<EOF
+sudo tee /etc/systemd/system/camera-api.service > /dev/null <<'EOF'
 [Unit]
 Description=Camera Streaming API Server
 After=network.target redis.service camera-streaming.service
@@ -371,10 +371,10 @@ Wants=redis.service
 
 [Service]
 Type=simple
-User=$SERVICE_USER
-Group=$SERVICE_GROUP
-WorkingDirectory=$PROJECT_DIR
-ExecStart=/home/edgecam/venv/bin/python3 $PROJECT_DIR/api_server.py
+User=edgecam
+Group=edgecam
+WorkingDirectory=/home/edgecam/projects/knitting-rpi-gs
+ExecStart=/home/edgecam/venv/bin/python3 /home/edgecam/projects/knitting-rpi-gs/api_server.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -382,7 +382,7 @@ StandardError=journal
 SyslogIdentifier=camera-api
 
 # Environment variables
-Environment=PYTHONPATH=$PROJECT_DIR
+Environment=PYTHONPATH=/home/edgecam/projects/knitting-rpi-gs
 Environment=REDIS_HOST=169.254.0.1
 Environment=REDIS_PORT=6379
 
@@ -396,36 +396,36 @@ EOF
 
 # Step 13: Create startup script
 print_status "Creating startup script..."
-sudo -u edgecam tee "$PROJECT_DIR/run.sh" > /dev/null <<EOF
+sudo -u edgecam tee "/home/edgecam/projects/knitting-rpi-gs/run.sh" > /dev/null <<'EOF'
 #!/bin/bash
 # Camera Streaming Startup Script
 
-cd "$PROJECT_DIR"
+cd "/home/edgecam/projects/knitting-rpi-gs"
 
 # Activate virtual environment
 source /home/edgecam/venv/bin/activate
 
 # Start the main camera streaming application
 python3 cam1_stream.py &
-CAM_PID=\$!
+CAM_PID=$!
 
 # Start the monitoring system
 python3 start.py &
-MONITOR_PID=\$!
+MONITOR_PID=$!
 
 # Wait for processes
-wait \$CAM_PID \$MONITOR_PID
+wait $CAM_PID $MONITOR_PID
 EOF
 
-sudo chmod +x "$PROJECT_DIR/run.sh"
+sudo chmod +x "/home/edgecam/projects/knitting-rpi-gs/run.sh"
 
 # Step 14: Create health check script
 print_status "Creating health check script..."
-sudo -u edgecam tee "$PROJECT_DIR/health_check.sh" > /dev/null <<EOF
+sudo -u edgecam tee "/home/edgecam/projects/knitting-rpi-gs/health_check.sh" > /dev/null <<'EOF'
 #!/bin/bash
 # Health check script for camera streaming system
 
-cd "$PROJECT_DIR"
+cd "/home/edgecam/projects/knitting-rpi-gs"
 
 # Check if services are running
 if ! pgrep -f "cam1_stream.py" > /dev/null; then
@@ -448,42 +448,42 @@ echo "OK: All services running"
 exit 0
 EOF
 
-sudo chmod +x "$PROJECT_DIR/health_check.sh"
+sudo chmod +x "/home/edgecam/projects/knitting-rpi-gs/health_check.sh"
 
 # Step 15: Create backup script
 print_status "Creating backup script..."
-sudo -u edgecam tee "$PROJECT_DIR/backup.sh" > /dev/null <<EOF
+sudo -u edgecam tee "/home/edgecam/projects/knitting-rpi-gs/backup.sh" > /dev/null <<'EOF'
 #!/bin/bash
 # Backup script for camera streaming system
 
-BACKUP_FILE="/home/edgecam/backups/camera-system-\$(date +%Y%m%d-%H%M%S).tar.gz"
+BACKUP_FILE="/home/edgecam/backups/camera-system-$(date +%Y%m%d-%H%M%S).tar.gz"
 
-cd "$PROJECT_DIR"
+cd "/home/edgecam/projects/knitting-rpi-gs"
 
 # Create backup
-tar -czf "\$BACKUP_FILE" \\
-    --exclude='*.pyc' \\
-    --exclude='__pycache__' \\
-    --exclude='logs/*.log' \\
-    --exclude='images/*.jpg' \\
+tar -czf "$BACKUP_FILE" \
+    --exclude='*.pyc' \
+    --exclude='__pycache__' \
+    --exclude='logs/*.log' \
+    --exclude='images/*.jpg' \
     .
 
-echo "Backup created: \$BACKUP_FILE"
+echo "Backup created: $BACKUP_FILE"
 
 # Keep only last 5 backups
 ls -t /home/edgecam/backups/camera-system-*.tar.gz | tail -n +6 | xargs rm -f
 EOF
 
-sudo chmod +x "$PROJECT_DIR/backup.sh"
+sudo chmod +x "/home/edgecam/projects/knitting-rpi-gs/backup.sh"
 
 # Step 16: Configure crontab for monitoring
 print_status "Configuring automated monitoring..."
-sudo -u edgecam crontab -l 2>/dev/null | { cat; echo "*/5 * * * * $PROJECT_DIR/health_check.sh > /dev/null 2>&1"; } | sudo -u edgecam crontab -
-sudo -u edgecam crontab -l 2>/dev/null | { cat; echo "0 2 * * * $PROJECT_DIR/backup.sh > /dev/null 2>&1"; } | sudo -u edgecam crontab -
+sudo -u edgecam crontab -l 2>/dev/null | { cat; echo "*/5 * * * * /home/edgecam/projects/knitting-rpi-gs/health_check.sh > /dev/null 2>&1"; } | sudo -u edgecam crontab -
+sudo -u edgecam crontab -l 2>/dev/null | { cat; echo "0 2 * * * /home/edgecam/projects/knitting-rpi-gs/backup.sh > /dev/null 2>&1"; } | sudo -u edgecam crontab -
 
 # Step 17: Create test script
 print_status "Creating test script..."
-sudo -u edgecam tee "$PROJECT_DIR/test_installation.sh" > /dev/null <<EOF
+sudo -u edgecam tee "/home/edgecam/projects/knitting-rpi-gs/test_installation.sh" > /dev/null <<'EOF'
 #!/bin/bash
 # Test script for camera streaming system installation
 
@@ -501,11 +501,11 @@ REQUIRED_FILES=(
     "dashboard.html"
 )
 
-for file in "\${REQUIRED_FILES[@]}"; do
-    if [ -f "\$file" ]; then
-        echo "   ✓ \$file"
+for file in "${REQUIRED_FILES[@]}"; do
+    if [ -f "$file" ]; then
+        echo "   ✓ $file"
     else
-        echo "   ✗ \$file (missing)"
+        echo "   ✗ $file (missing)"
         exit 1
     fi
 done
@@ -550,7 +550,7 @@ fi
 echo "Installation test completed successfully!"
 EOF
 
-sudo chmod +x "$PROJECT_DIR/test_installation.sh"
+sudo chmod +x "/home/edgecam/projects/knitting-rpi-gs/test_installation.sh"
 
 # Step 18: Enable services
 print_status "Enabling services..."
@@ -568,15 +568,15 @@ sudo -u edgecam touch /home/edgecam/logs/performance.log
 print_status "Performing final configuration..."
 
 # Set proper permissions
-sudo chown -R edgecam:edgecam "$PROJECT_DIR"
-sudo chmod +x "$PROJECT_DIR"/*.sh
+sudo chown -R edgecam:edgecam "/home/edgecam/projects/knitting-rpi-gs"
+sudo chmod +x "/home/edgecam/projects/knitting-rpi-gs"/*.sh
 
 print_status "Online installation completed successfully!"
 
 echo -e "${GREEN}================================${NC}"
 echo -e "${GREEN}  Installation Summary${NC}"
 echo -e "${GREEN}================================${NC}"
-echo -e "${BLUE}Project Directory:${NC} $PROJECT_DIR"
+echo -e "${BLUE}Project Directory:${NC} /home/edgecam/projects/knitting-rpi-gs"
 echo -e "${BLUE}GitHub Repository:${NC} $GITHUB_REPO"
 echo -e "${BLUE}Branch:${NC} $GITHUB_BRANCH"
 echo -e "${BLUE}Virtual Environment:${NC} /home/edgecam/venv/"
@@ -585,7 +585,7 @@ echo -e "${BLUE}API Base URL:${NC} http://169.254.0.1:5000/api"
 echo ""
 
 print_status "Next steps:"
-echo "1. Test the installation: cd $PROJECT_DIR && ./test_installation.sh"
+echo "1. Test the installation: cd /home/edgecam/projects/knitting-rpi-gs && ./test_installation.sh"
 echo "2. Start services: sudo systemctl start camera-streaming camera-api"
 echo "3. Access dashboard: http://169.254.0.1:5000/dashboard.html"
 echo "4. Check system health: python3 health_check.py"
