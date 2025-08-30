@@ -1,0 +1,13 @@
+sudo apt-get -y update && \
+sudo apt-get -y install git python3-picamera2 python3-opencv python3-redis python3-psutil network-manager && \
+mkdir -p ~/projects && \
+cd ~/projects && \
+git clone https://ramkumar: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@github.com/lighthouseai/knitting-rpi-gs && \
+cd knitting-rpi-gs && \
+git switch 2.4.2/greencam1 && \
+sudo chmod 777 kill.txt && \
+(crontab -l 2>/dev/null; echo "@reboot /home/edgecam/projects/knitting-rpi-gs/run.sh") | crontab - && \
+sudo nmcli con modify "Wired connection 1" ipv4.addresses 169.254.0.2/16 ipv4.gateway 169.254.0.1 ipv4.dns "8.8.8.8 1.1.1.1" ipv4.method manual && \
+sudo nmcli con up "Wired connection 1" && \
+ip addr show eth0 && \
+sudo reboot
