@@ -99,6 +99,14 @@ class CameraStreamer:
             self.camactivetime = 0
             self.redis_client = redis.Redis(host=self.ip, port=REDIS_PORT, db=REDIS_DB, socket_timeout=REDIS_TIMEOUT, health_check_interval=REDIS_HEALTH_CHECK_INTERVAL)
             self.pubsub_client = self.redis_client.pubsub()
+            self.pubsub_client.subscribe(self.reqtopic)
+            
+            # Test the connection and subscription
+            if not self.redis_client.ping():
+                raise Exception("Redis ping failed")
+            if not self.pubsub_client.connection:
+                raise Exception("Pubsub connection failed")
+                
         except Exception as e:
             print(f"Error initializing other components: {e}")
             check_log_file_exists()
@@ -106,34 +114,48 @@ class CameraStreamer:
             traceback.print_exc()
 
     def reconnect_redis(self):
-        """Attempt to reconnect to the Redis server for both clients."""
+        """Attempt to reconnect to the Redis server for both clients and re-subscribe to channels."""
         while True:
             try:
-                
                 print("Attempting to reconnect to Redis...")
                 check_log_file_exists()
                 logging.info("Attempting to reconnect to Redis...")
 
+                # Close existing connections if they exist
+                try:
+                    if hasattr(self, 'pubsub_client') and self.pubsub_client:
+                        self.pubsub_client.close()
+                    if hasattr(self, 'redis_client') and self.redis_client:
+                        self.redis_client.close()
+                except Exception as e:
+                    print(f"Error closing existing connections: {e}")
+
                 # Reconnect the Datatransfer client
-                self.data_transfer.connect_to_redis()
-                if self.data_transfer.client.ping():
-                    print("Reconnected to Redis successfully for Datatransfer.")
-                    check_log_file_exists()
-                    logging.info("Reconnected to Redis successfully for Datatransfer.")
+                self.data_transfer.reconnect_to_redis()
                 
-                # Reconnect the local redis_client
+                # Reconnect the local redis_client and re-subscribe
                 self.redis_client = redis.Redis(host=self.ip, port=REDIS_PORT, db=REDIS_DB, socket_timeout=REDIS_TIMEOUT, health_check_interval=REDIS_HEALTH_CHECK_INTERVAL)
                 self.pubsub_client = self.redis_client.pubsub()
                 self.pubsub_client.subscribe(self.reqtopic)
-                if self.redis_client.ping():
-                    print("Reconnected to Redis successfully for local redis_client.")
-                    check_log_file_exists()
-                    logging.info("Reconnected to Redis successfully for local redis_client.")
                 
+                # Test both connections and subscriptions
                 if self.data_transfer.client.ping() and self.redis_client.ping():
+                    # Verify pubsub subscription is working
+                    if self.pubsub_client and self.pubsub_client.connection:
+                        print("Reconnected to Redis successfully for both clients and re-subscribed to channels.")
+                        check_log_file_exists()
+                        logging.info("Reconnected to Redis successfully for both clients and re-subscribed to channels.")
+                        break
+                    else:
+                        print("Redis connected but pubsub subscription failed, retrying...")
+                        check_log_file_exists()
+                        logging.warning("Redis connected but pubsub subscription failed, retrying...")
+                        time.sleep(2)
+                else:
+                    print("Redis ping failed for one or both clients, retrying...")
                     check_log_file_exists()
-                    logging.info("Redis reconnection successful - continuing normal operation")
-                    break
+                    logging.warning("Redis ping failed for one or both clients, retrying...")
+                    time.sleep(2)
                 
             except Exception as e:
                 print(f"Reconnect attempt failed: {e}")
@@ -153,6 +175,26 @@ class CameraStreamer:
             traceback.print_exc()
             self.status,self.image = False,""
  
+    def check_redis_connection(self):
+        """Check if Redis connections are healthy."""
+        try:
+            # Check main Redis client
+            if not self.redis_client.ping():
+                return False
+            # Check pubsub connection
+            if not self.pubsub_client.connection:
+                return False
+            # Check data transfer client
+            if not self.data_transfer.client.ping():
+                return False
+            # Check data transfer pubsub
+            if not self.data_transfer.p.connection:
+                return False
+            return True
+        except Exception as e:
+            print(f"Redis connection check failed: {e}")
+            return False
+
     def main(self):
         """Main function."""
         try:
@@ -165,6 +207,15 @@ class CameraStreamer:
                         check_log_file_exists()
                         logging.error("Camera is not initialized.")
                         self.initialize_camera()
+                    
+                    # Check Redis connection health periodically
+                    if time.time() - st > CONNECTION_CHECK_INTERVAL:  # Check connection health
+                        if not self.check_redis_connection():
+                            print("Redis connection lost, attempting reconnection...")
+                            check_log_file_exists()
+                            logging.warning("Redis connection lost, attempting reconnection...")
+                            self.reconnect_redis()
+                        st = time.time()
                     
                     data = self.data_transfer.p.get_message()
                     if time.time() - st > 10:

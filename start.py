@@ -139,12 +139,24 @@ def reconnect_redis():
             print("Attempting to reconnect to Redis...")
             check_log_file_exists()
             logging.info("Attempting to reconnect to Redis...")
+            
+            # Close existing connection if it exists
+            try:
+                if 'client' in locals() and client:
+                    client.close()
+            except Exception as e:
+                print(f"Error closing existing connection: {e}")
+            
             client = connect_to_redis()
             if client and client.ping():
                 print("Reconnected to Redis successfully.")
                 check_log_file_exists()
                 logging.info("Reconnected to Redis successfully.")
                 return client
+            else:
+                print("Redis ping failed, retrying...")
+                logging.warning("Redis ping failed, retrying...")
+                time.sleep(2)
         except Exception as e:
             print(f"Reconnect attempt failed: {e}")
             check_log_file_exists()
