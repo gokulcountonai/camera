@@ -5,9 +5,10 @@ import redis
 import pickle
 import time
 import logging
+from config import *
 
 # Configure logging
-logging.basicConfig(filename='/home/edgecam/projects/knitting-rpi-gs/greencam.log', level=logging.INFO,
+logging.basicConfig(filename='greencam.log', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 class Datatransfer:
@@ -24,7 +25,7 @@ class Datatransfer:
         self.sendtopic = sendtopic
         self.connect_to_redis()
 
-        self.imageQueue = queue.Queue(maxsize=10)
+        self.imageQueue = queue.Queue(maxsize=IMAGE_QUEUE_MAXSIZE)
         self.thread1 = threading.Thread(target=self.data_transfer)
         self.thread1.start()
 
@@ -33,7 +34,7 @@ class Datatransfer:
         Connect to Redis server.
         """
         try:
-            self.client = redis.Redis(host=self.ip, port=6379, db=0, socket_timeout=5,health_check_interval=5)
+            self.client = redis.Redis(host=self.ip, port=REDIS_PORT, db=REDIS_DB, socket_timeout=REDIS_TIMEOUT, health_check_interval=REDIS_HEALTH_CHECK_INTERVAL)
             self.p = self.client.pubsub()
             self.p.subscribe(self.reqtopic)
         except Exception as e:
@@ -52,8 +53,6 @@ class Datatransfer:
                 if self.client.ping():
                     print("Reconnected to Redis successfully.")
                     logging.info("Reconnected to Redis successfully.")
-                    logging.info("Rebooting the system...")
-                    os.system("sudo reboot")
                     break
             except Exception as e:
                 print(f"Reconnect attempt failed: {e}")

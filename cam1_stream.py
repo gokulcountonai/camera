@@ -6,11 +6,11 @@ from picamera2 import Picamera2
 from src.sendData import Datatransfer
 import threading,logging
 from logging.handlers import RotatingFileHandler
+from config import *
 
 
 
-LOG_FILE = "greencam.log"
-MAX_LOG_SIZE = 100 * 1024 * 1024  # 5mb
+# Configuration is now imported from config.py
 
 
 def setup_logging():
@@ -75,11 +75,11 @@ class CameraStreamer:
         try:
             self.camera = Picamera2()
             self.config = self.camera.create_preview_configuration(
-                queue=False, main={"size": (1270, 720), "format": "RGB888"}
+                queue=False, main={"size": (CAMERA_WIDTH, CAMERA_HEIGHT), "format": CAMERA_FORMAT}
             )
             self.camera.configure(self.config)
             self.camera.set_controls(
-                {"ExposureTime": 250, "AnalogueGain": 3.0, "FrameRate": 100}
+                {"ExposureTime": EXPOSURE_TIME, "AnalogueGain": ANALOGUE_GAIN, "FrameRate": FRAME_RATE}
             )
             self.camera.start()
         except Exception as e:
@@ -97,7 +97,7 @@ class CameraStreamer:
             self.data_transfer = Datatransfer(self.ip, self.reqtopic, self.sendtopic)
 
             self.camactivetime = 0
-            self.redis_client = redis.Redis(host=self.ip, port=6379, db=0, socket_timeout=5,health_check_interval=5)
+            self.redis_client = redis.Redis(host=self.ip, port=REDIS_PORT, db=REDIS_DB, socket_timeout=REDIS_TIMEOUT, health_check_interval=REDIS_HEALTH_CHECK_INTERVAL)
             self.pubsub_client = self.redis_client.pubsub()
         except Exception as e:
             print(f"Error initializing other components: {e}")
@@ -122,7 +122,7 @@ class CameraStreamer:
                     logging.info("Reconnected to Redis successfully for Datatransfer.")
                 
                 # Reconnect the local redis_client
-                self.redis_client = redis.Redis(host=self.ip, port=6379, db=0, socket_timeout=5,health_check_interval=5)
+                self.redis_client = redis.Redis(host=self.ip, port=REDIS_PORT, db=REDIS_DB, socket_timeout=REDIS_TIMEOUT, health_check_interval=REDIS_HEALTH_CHECK_INTERVAL)
                 self.pubsub_client = self.redis_client.pubsub()
                 self.pubsub_client.subscribe(self.reqtopic)
                 if self.redis_client.ping():
@@ -132,9 +132,8 @@ class CameraStreamer:
                 
                 if self.data_transfer.client.ping() and self.redis_client.ping():
                     check_log_file_exists()
-                    logging.info("Loop gets breaked cam1_stream.py")
-                    logging.info("Rebooting the system...")
-                    os.system("sudo reboot")
+                    logging.info("Redis reconnection successful - continuing normal operation")
+                    break
                 
             except Exception as e:
                 print(f"Reconnect attempt failed: {e}")
@@ -148,9 +147,9 @@ class CameraStreamer:
             self.status,self.image = True,array
 
         except Exception as e:
-            print(f"Error initializing other components: {e}")
+            print(f"Error fetching image: {e}")
             check_log_file_exists()
-            logging.error(f"Error initializing other components: {e}")
+            logging.error(f"Error fetching image: {e}")
             traceback.print_exc()
             self.status,self.image = False,""
  
@@ -173,16 +172,23 @@ class CameraStreamer:
                         st = time.time()
 
                     if data and data["data"] != 1 and data is not None and data["channel"].decode("utf-8") == self.reqtopic:
-                        data = pickle.loads(data["data"])  # Convert received data from bytes to dict
+                        try:
+                            data = pickle.loads(data["data"])  # Convert received data from bytes to dict
+                        except (pickle.PickleError, KeyError, TypeError) as e:
+                            print(f"Error unpickling data: {e}")
+                            check_log_file_exists()
+                            logging.error(f"Error unpickling data: {e}")
+                            continue
                         
                         thread = threading.Thread(target=self.fetch_image)
+                        thread.daemon = True  # Make thread daemon so it doesn't block program exit
                         thread.start()
                         thread.join(timeout=1)
                         if thread.is_alive():
                             self.image = ""
                             self.status = False
-                            print("Error in fetching image")
-                        del thread
+                            print("Error in fetching image - thread timed out")
+                        # Thread will be cleaned up automatically when it completes or times out
 
                         status, image = self.status, self.image
                         if status and image.size > 0:
@@ -197,7 +203,7 @@ class CameraStreamer:
                             print(count)
                             if count > 10:
                                 count = 0
-                                with open("kill.txt", "r+") as f:
+                                with open(KILL_FILE, "r+") as f:
                                     content = f.read().strip()
                                     if content == "0":
                                         f.seek(0)
@@ -226,7 +232,7 @@ class CameraStreamer:
             check_log_file_exists()
             logging.error(f"Error in Main final except main: {str(e)}")
             traceback.print_exc()
-            with open("kill.txt", "r+") as f:
+            with open(KILL_FILE, "r+") as f:
                 content = f.read().strip()
                 if content == "0":
                     f.seek(0)
@@ -236,7 +242,7 @@ class CameraStreamer:
 
 if __name__ == "__main__":
 
-    ip = "169.254.0.1"
-    reqtopic = "request/greencam1"
-    sendtopic = "stream/greencam1"
+    ip = REDIS_HOST
+    reqtopic = REQUEST_TOPIC_GREENCAM1
+    sendtopic = STREAM_TOPIC_GREENCAM1
     camstream = CameraStreamer(ip, reqtopic, sendtopic)
