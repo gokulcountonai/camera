@@ -1,0 +1,161 @@
+{
+  "imports": {
+    "cv2": {
+      "status": "FAIL",
+      "error": "No module named 'cv2'"
+    },
+    "redis": {
+      "status": "FAIL",
+      "error": "No module named 'redis'"
+    },
+    "pickle": {
+      "status": "PASS",
+      "error": null
+    },
+    "threading": {
+      "status": "PASS",
+      "error": null
+    },
+    "queue": {
+      "status": "PASS",
+      "error": null
+    },
+    "logging": {
+      "status": "PASS",
+      "error": null
+    },
+    "psutil": {
+      "status": "FAIL",
+      "error": "No module named 'psutil'"
+    }
+  },
+  "config": {
+    "REDIS_HOST": {
+      "status": "PASS",
+      "value": "169.254.0.1"
+    },
+    "REDIS_PORT": {
+      "status": "PASS",
+      "value": 6379
+    },
+    "REDIS_DB": {
+      "status": "PASS",
+      "value": 0
+    },
+    "REQUEST_TOPIC_GREENCAM1": {
+      "status": "PASS",
+      "value": "request/greencam1"
+    },
+    "STREAM_TOPIC_GREENCAM1": {
+      "status": "PASS",
+      "value": "stream/greencam1"
+    },
+    "CAMERA_WIDTH": {
+      "status": "PASS",
+      "value": 1270
+    },
+    "CAMERA_HEIGHT": {
+      "status": "PASS",
+      "value": 720
+    },
+    "LOG_FILE": {
+      "status": "PASS",
+      "value": "greencam.log"
+    }
+  },
+  "redis": {
+    "status": "FAIL",
+    "error": "No module named 'redis'"
+  },
+  "file_permissions": {
+    "cam1_stream.py": {
+      "status": "PASS",
+      "permissions": "readable"
+    },
+    "start.py": {
+      "status": "PASS",
+      "permissions": "readable"
+    },
+    "client.py": {
+      "status": "PASS",
+      "permissions": "readable"
+    },
+    "src/sendData.py": {
+      "status": "PASS",
+      "permissions": "readable"
+    },
+    "storeimages.py": {
+      "status": "PASS",
+      "permissions": "readable"
+    },
+    "config.py": {
+      "status": "PASS",
+      "permissions": "readable"
+    },
+    "run.sh": {
+      "status": "PASS",
+      "permissions": "readable, executable"
+    }
+  },
+  "directory_structure": {
+    "logs": {
+      "status": "PASS",
+      "writable": true
+    },
+    "images": {
+      "status": "PASS",
+      "writable": true
+    },
+    "src": {
+      "status": "PASS",
+      "writable": true
+    }
+  },
+  "syntax": {
+    "cam1_stream.py": {
+      "status": "PASS"
+    },
+    "start.py": {
+      "status": "PASS"
+    },
+    "client.py": {
+      "status": "PASS"
+    },
+    "src/sendData.py": {
+      "status": "PASS"
+    },
+    "storeimages.py": {
+      "status": "PASS"
+    },
+    "config.py": {
+      "status": "PASS"
+    },
+    "monitoring.py": {
+      "status": "PASS"
+    },
+    "health_check.py": {
+      "status": "PASS"
+    },
+    "log_analyzer.py": {
+      "status": "PASS"
+    },
+    "graceful_shutdown.py": {
+      "status": "PASS"
+    }
+  },
+  "monitoring_tools": {
+    "health_check": {
+      "status": "PASS"
+    },
+    "log_analyzer": {
+      "status": "PASS"
+    }
+  },
+  "summary": {
+    "total_tests": 7,
+    "passed_tests": 5,
+    "failed_tests": 2,
+    "test_duration": 0.2819085121154785,
+    "timestamp": "2025-08-30T13:06:24.027728"
+  }
+}

@@ -42,6 +42,13 @@ MAIN_LOOP_SLEEP = 0.005  # seconds
 STORE_SLEEP = 0.01  # seconds
 CONNECTION_CHECK_INTERVAL = 30  # seconds - How often to check Redis connection health
 
+# Monitoring Configuration
+HEALTH_CHECK_INTERVAL = 60  # seconds - How often to log system health
+PERFORMANCE_LOG_INTERVAL = 300  # seconds - How often to log performance metrics
+LOG_ROTATION_SIZE = 50 * 1024 * 1024  # 50MB - Main log rotation size
+ERROR_LOG_ROTATION_SIZE = 10 * 1024 * 1024  # 10MB - Error log rotation size
+LOG_BACKUP_COUNT = 5  # Number of backup log files to keep
+
 # File Paths
 IMAGES_DIR = "./images"
 KILL_FILE = "kill.txt"

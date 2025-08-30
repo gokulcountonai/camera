@@ -2,7 +2,7 @@ sudo apt-get -y update && \
 sudo apt-get -y install git python3-picamera2 python3-opencv python3-redis python3-psutil network-manager && \
 mkdir -p ~/projects && \
 cd ~/projects && \
-git clone https://ramkumar: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@github.com/lighthouseai/knitting-rpi-gs && \
+git clone https://github.com/lighthouseai/knitting-rpi-gs && \
 cd knitting-rpi-gs && \
 git switch 2.4.2/greencam1 && \
 sudo chmod 777 kill.txt && \

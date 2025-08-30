@@ -26,7 +26,7 @@ class Datatransfer:
         self.connect_to_redis()
 
         self.imageQueue = queue.Queue(maxsize=IMAGE_QUEUE_MAXSIZE)
-        self.thread1 = threading.Thread(target=self.data_transfer)
+        self.thread1 = threading.Thread(target=self.data_transfer, daemon=True)
         self.thread1.start()
 
     def connect_to_redis(self):
@@ -117,19 +117,23 @@ class Datatransfer:
                 time.sleep(0.0005)
 
                 if not self.imageQueue.empty():
-                    instance = self.imageQueue.get()
-                    serialized = pickle.dumps(instance)
                     try:
-                        self.client.publish(self.sendtopic, serialized)
-                    except redis.exceptions.ConnectionError as e:
-                        print(f"Redis connection error: {e}")
-                        logging.error(f"Redis connection error: {e}")
-                        self.reconnect_to_redis()
-                    except Exception as e:
-                        print(f"Error publishing image data: {e}")
-                        logging.error(f"Error publishing image data: {e}")
-                        self.reconnect_to_redis()
-                    instance["status"] = 200
+                        instance = self.imageQueue.get(timeout=1)  # Add timeout to prevent blocking
+                        serialized = pickle.dumps(instance)
+                        try:
+                            self.client.publish(self.sendtopic, serialized)
+                        except redis.exceptions.ConnectionError as e:
+                            print(f"Redis connection error: {e}")
+                            logging.error(f"Redis connection error: {e}")
+                            self.reconnect_to_redis()
+                        except Exception as e:
+                            print(f"Error publishing image data: {e}")
+                            logging.error(f"Error publishing image data: {e}")
+                            self.reconnect_to_redis()
+                        instance["status"] = 200
+                    except queue.Empty:
+                        # Queue timeout, continue loop
+                        continue
             except Exception as e:
                 print(f"Error in data transfer: {e}")
                 logging.error(f"Error in data transfer: {e}")
