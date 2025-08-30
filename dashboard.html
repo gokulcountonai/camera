@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Streaming System Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .status-item {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            min-width: 120px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-item.healthy { border-left: 4px solid #4CAF50; }
+        .status-item.warning { border-left: 4px solid #FF9800; }
+        .status-item.critical { border-left: 4px solid #F44336; }
+
+        .status-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .status-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-weight: 500;
+            color: #555;
+        }
+
+        .metric-value {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .metric-value.healthy { color: #4CAF50; }
+        .metric-value.warning { color: #FF9800; }
+        .metric-value.critical { color: #F44336; }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 15px;
+        }
+
+        .alerts {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .alert {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid;
+        }
+
+        .alert.warning {
+            background: #fff3cd;
+            border-color: #FF9800;
+            color: #856404;
+        }
+
+        .alert.critical {
+            background: #f8d7da;
+            border-color: #F44336;
+            color: #721c24;
+        }
+
+        .alert.info {
+            background: #d1ecf1;
+            border-color: #17a2b8;
+            color: #0c5460;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .btn-warning {
+            background: #FF9800;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #e68900;
+        }
+
+        .btn-danger {
+            background: #F44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        .refresh-info {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .status-bar {
+                flex-direction: column;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 Camera Streaming System Dashboard</h1>
+            <div class="status-bar" id="statusBar">
+                <div class="loading">Loading status...</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- System Resources -->
+            <div class="card">
+                <h3>💻 System Resources</h3>
+                <div id="systemResources">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Camera Status -->
+            <div class="card">
+                <h3>📷 Camera Status</h3>
+                <div id="cameraStatus">
+                    <div class="loading">Loading...</div>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="testCamera()">Test Camera</button>
+                    <button class="btn btn-warning" onclick="recoverCamera()">Recover Camera</button>
+                </div>
+            </div>
+
+            <!-- Redis Status -->
+            <div class="card">
+                <h3>🔴 Redis Status</h3>
+                <div id="redisStatus">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Process Status -->
+            <div class="card">
+                <h3>⚙️ Process Status</h3>
+                <div id="processStatus">
+                    <div class="loading">Loading...</div>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-warning" onclick="restartServices()">Restart Services</button>
+                </div>
+            </div>
+
+            <!-- Performance Chart -->
+            <div class="card">
+                <h3>📈 Performance Metrics</h3>
+                <div class="chart-container">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Recent Alerts -->
+            <div class="card">
+                <h3>🚨 Recent Alerts</h3>
+                <div id="alerts" class="alerts">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <!-- System Info -->
+            <div class="card">
+                <h3>ℹ️ System Information</h3>
+                <div id="systemInfo">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Recent Logs -->
+            <div class="card">
+                <h3>📋 Recent Logs</h3>
+                <div id="recentLogs" class="alerts">
+                    <div class="loading">Loading...</div>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="refreshLogs()">Refresh Logs</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="refresh-info">
+            Auto-refresh every 30 seconds | Last updated: <span id="lastUpdate">Never</span>
+        </div>
+    </div>
+
+    <script>
+        let performanceChart;
+        let refreshInterval;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboard();
+            setupAutoRefresh();
+            initializePerformanceChart();
+        });
+
+        function setupAutoRefresh() {
+            refreshInterval = setInterval(loadDashboard, 30000); // 30 seconds
+        }
+
+        async function loadDashboard() {
+            try {
+                const response = await fetch('/api/dashboard');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    updateStatusBar(data.current_health);
+                    updateSystemResources(data.current_health.system_resources);
+                    updateCameraStatus(data.current_health.camera_status);
+                    updateRedisStatus(data.current_health.redis_status);
+                    updateProcessStatus(data.current_health.process_status);
+                    updateSystemInfo(data.system_info);
+                    updateAlerts(data.recent_alerts);
+                    updateRecentLogs();
+                    updatePerformanceChart(data.health_history);
+                    updateLastUpdate();
+                } else {
+                    console.error('Failed to load dashboard:', data.error);
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        function updateStatusBar(healthData) {
+            const statusBar = document.getElementById('statusBar');
+            const resources = healthData.system_resources || {};
+            const camera = healthData.camera_status || {};
+            const redis = healthData.redis_status || {};
+
+            let overallStatus = 'healthy';
+            if (camera.should_reboot || !redis.connected) overallStatus = 'critical';
+            else if (resources.cpu_percent > 80 || resources.memory_percent > 85) overallStatus = 'warning';
+
+            statusBar.innerHTML = `
+                <div class="status-item ${overallStatus}">
+                    <div class="status-value">${overallStatus.toUpperCase()}</div>
+                    <div class="status-label">Overall Status</div>
+                </div>
+                <div class="status-item ${getStatusClass(resources.cpu_percent, 80, 90)}">
+                    <div class="status-value">${resources.cpu_percent || 0}%</div>
+                    <div class="status-label">CPU Usage</div>
+                </div>
+                <div class="status-item ${getStatusClass(resources.memory_percent, 85, 95)}">
+                    <div class="status-value">${resources.memory_percent || 0}%</div>
+                    <div class="status-label">Memory Usage</div>
+                </div>
+                <div class="status-item ${getStatusClass(resources.disk_percent, 90, 95)}">
+                    <div class="status-value">${resources.disk_percent || 0}%</div>
+                    <div class="status-label">Disk Usage</div>
+                </div>
+                <div class="status-item ${camera.is_capturing ? 'healthy' : 'critical'}">
+                    <div class="status-value">${camera.is_capturing ? 'ON' : 'OFF'}</div>
+                    <div class="status-label">Camera</div>
+                </div>
+                <div class="status-item ${redis.connected ? 'healthy' : 'critical'}">
+                    <div class="status-value">${redis.connected ? 'ON' : 'OFF'}</div>
+                    <div class="status-label">Redis</div>
+                </div>
+            `;
+        }
+
+        function getStatusClass(value, warningThreshold, criticalThreshold) {
+            if (value >= criticalThreshold) return 'critical';
+            if (value >= warningThreshold) return 'warning';
+            return 'healthy';
+        }
+
+        function updateSystemResources(resources) {
+            const container = document.getElementById('systemResources');
+            if (!resources || resources.error) {
+                container.innerHTML = '<div class="alert critical">Error loading system resources</div>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">CPU Usage</span>
+                    <span class="metric-value ${getStatusClass(resources.cpu_percent, 80, 90)}">${resources.cpu_percent || 0}%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Memory Usage</span>
+                    <span class="metric-value ${getStatusClass(resources.memory_percent, 85, 95)}">${resources.memory_percent || 0}%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Memory Available</span>
+                    <span class="metric-value">${resources.memory_available_gb || 0} GB</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Disk Usage</span>
+                    <span class="metric-value ${getStatusClass(resources.disk_percent, 90, 95)}">${resources.disk_percent || 0}%</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Disk Free</span>
+                    <span class="metric-value">${resources.disk_free_gb || 0} GB</span>
+                </div>
+            `;
+        }
+
+        function updateCameraStatus(camera) {
+            const container = document.getElementById('cameraStatus');
+            if (!camera || camera.error) {
+                container.innerHTML = '<div class="alert critical">Error loading camera status</div>';
+                return;
+            }
+
+            const health = camera.health_status || {};
+            const state = camera.camera_state || {};
+
+            container.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="metric-value ${camera.is_capturing ? 'healthy' : 'critical'}">${camera.is_capturing ? 'Capturing' : 'Stopped'}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Health Score</span>
+                    <span class="metric-value ${getStatusClass(health.health_score, 70, 30)}">${health.health_score || 0}/100</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Consecutive Failures</span>
+                    <span class="metric-value">${health.consecutive_failures || 0}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Total Frames</span>
+                    <span class="metric-value">${state.total_frames_captured || 0}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Failed Frames</span>
+                    <span class="metric-value">${state.total_frames_failed || 0}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Last Frame Age</span>
+                    <span class="metric-value">${Math.round(camera.last_frame_age || 0)}s</span>
+                </div>
+            `;
+        }
+
+        function updateRedisStatus(redis) {
+            const container = document.getElementById('redisStatus');
+            if (!redis || redis.error) {
+                container.innerHTML = '<div class="alert critical">Error loading Redis status</div>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Connection</span>
+                    <span class="metric-value ${redis.connected ? 'healthy' : 'critical'}">${redis.connected ? 'Connected' : 'Disconnected'}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Host</span>
+                    <span class="metric-value">${redis.host || 'N/A'}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Port</span>
+                    <span class="metric-value">${redis.port || 'N/A'}</span>
+                </div>
+            `;
+        }
+
+        function updateProcessStatus(processes) {
+            const container = document.getElementById('processStatus');
+            if (!processes || processes.error) {
+                container.innerHTML = '<div class="alert critical">Error loading process status</div>';
+                return;
+            }
+
+            let html = '';
+            for (const [name, status] of Object.entries(processes)) {
+                html += `
+                    <div class="metric">
+                        <span class="metric-label">${name}</span>
+                        <span class="metric-value ${status.running ? 'healthy' : 'critical'}">${status.running ? 'Running' : 'Stopped'}</span>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        function updateSystemInfo(info) {
+            const container = document.getElementById('systemInfo');
+            if (!info) {
+                container.innerHTML = '<div class="alert critical">Error loading system info</div>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="metric">
+                    <span class="metric-label">Hostname</span>
+                    <span class="metric-value">${info.hostname || 'N/A'}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Platform</span>
+                    <span class="metric-value">${info.platform || 'N/A'}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Uptime</span>
+                    <span class="metric-value">${info.uptime?.uptime_formatted || 'N/A'}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">CPU Temperature</span>
+                    <span class="metric-value">${info.temperature?.cpu_temp_celsius ? info.temperature.cpu_temp_celsius + '°C' : 'N/A'}</span>
+                </div>
+            `;
+        }
+
+        function updateAlerts(alerts) {
+            const container = document.getElementById('alerts');
+            if (!alerts || alerts.length === 0) {
+                container.innerHTML = '<div class="alert info">No recent alerts</div>';
+                return;
+            }
+
+            let html = '';
+            alerts.forEach(alert => {
+                html += `
+                    <div class="alert ${alert.severity}">
+                        <strong>${alert.type}</strong>: ${alert.message}
+                        <br><small>${new Date(alert.timestamp).toLocaleString()}</small>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        async function updateRecentLogs() {
+            try {
+                const response = await fetch('/api/logs/recent?limit=10');
+                const logs = await response.json();
+                
+                const container = document.getElementById('recentLogs');
+                if (!logs || logs.length === 0) {
+                    container.innerHTML = '<div class="alert info">No recent logs</div>';
+                    return;
+                }
+
+                let html = '';
+                logs.forEach(log => {
+                    const severity = log.includes('ERROR') ? 'critical' : 
+                                   log.includes('WARNING') ? 'warning' : 'info';
+                    html += `<div class="alert ${severity}">${log}</div>`;
+                });
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading logs:', error);
+            }
+        }
+
+        function initializePerformanceChart() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'CPU Usage (%)',
+                        data: [],
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }, {
+                        label: 'Memory Usage (%)',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        function updatePerformanceChart(history) {
+            if (!history || history.length === 0) return;
+
+            const labels = [];
+            const cpuData = [];
+            const memoryData = [];
+
+            history.forEach(record => {
+                const time = new Date(record.timestamp).toLocaleTimeString();
+                labels.push(time);
+                cpuData.push(record.system_resources?.cpu_percent || 0);
+                memoryData.push(record.system_resources?.memory_percent || 0);
+            });
+
+            performanceChart.data.labels = labels;
+            performanceChart.data.datasets[0].data = cpuData;
+            performanceChart.data.datasets[1].data = memoryData;
+            performanceChart.update();
+        }
+
+        function updateLastUpdate() {
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
+        }
+
+        // API Functions
+        async function testCamera() {
+            try {
+                const response = await fetch('/api/camera/test', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Camera test successful!');
+                } else {
+                    alert('Camera test failed!');
+                }
+                loadDashboard();
+            } catch (error) {
+                alert('Error testing camera: ' + error.message);
+            }
+        }
+
+        async function recoverCamera() {
+            if (!confirm('Attempt camera recovery?')) return;
+            
+            try {
+                const response = await fetch('/api/camera/recover', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Camera recovery successful!');
+                } else {
+                    alert('Camera recovery failed!');
+                }
+                loadDashboard();
+            } catch (error) {
+                alert('Error recovering camera: ' + error.message);
+            }
+        }
+
+        async function restartServices() {
+            if (!confirm('Restart camera streaming services?')) return;
+            
+            try {
+                const response = await fetch('/api/system/restart-services', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Services restarted successfully!');
+                } else {
+                    alert('Failed to restart services!');
+                }
+                loadDashboard();
+            } catch (error) {
+                alert('Error restarting services: ' + error.message);
+            }
+        }
+
+        function refreshLogs() {
+            updateRecentLogs();
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>
